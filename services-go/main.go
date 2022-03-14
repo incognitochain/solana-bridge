@@ -13,6 +13,7 @@ import (
 	"github.com/gagliardetto/solana-go/rpc/ws"
 	"github.com/thachtb/solana-bridge/services-go/Shield"
 	unshield2 "github.com/thachtb/solana-bridge/services-go/unshield"
+	"math"
 	"math/big"
 	"strings"
 )
@@ -271,7 +272,7 @@ func main() {
 	ammAcc := solana.MustPublicKeyFromBase58("HeD1cekRWUNR25dcvW8c9bAHeKbr1r7qKEhv7pEegr4f")
 	poolTokenAmm := solana.MustPublicKeyFromBase58("3qbeXHwh9Sz4zabJxbxvYGJc57DZHrFgYMCWnaeNJENT")
 	pcTokenAmm := solana.MustPublicKeyFromBase58("FrGPG5D4JZVF5ger7xSChFVFL8M9kACJckzyCz8tVowz")
-	swapAmount := uint64(1e8)
+	swapAmount := uint64(1e12)
 	poolTokenBal, err := rpcClient.GetTokenAccountBalance(context.Background(), poolTokenAmm, rpc.CommitmentConfirmed)
 	if err != nil {
 		panic(err)
@@ -293,18 +294,22 @@ func main() {
 		panic(err)
 	}
 	ammData := resp.Value.Data.GetBinary()
-	swap_fee_numerator := ammData[22 * 8: 23 * 8]
-	swap_fee_denominator := ammData[23 * 8: 24 * 8]
+	swap_fee_numerator := ammData[22*8 : 23*8]
+	swap_fee_denominator := ammData[23*8 : 24*8]
 	swapFeeNum := binary.LittleEndian.Uint64(swap_fee_numerator)
 	swapFeeDe := binary.LittleEndian.Uint64(swap_fee_denominator)
 	// hardcode fee 0.3%
 	fromAmountWithFee := new(big.Int).SetUint64(swapAmount * (swapFeeDe - swapFeeNum) / swapFeeDe)
 	poolAmountBig, _ := new(big.Int).SetString(poolTokenBal.Value.Amount, 10)
-	pcAmountBig, _ :=  new(big.Int).SetString(pcTokenBal.Value.Amount, 10)
-	denominator := 	big.NewInt(0).Add(fromAmountWithFee, poolAmountBig)
+	pcAmountBig, _ := new(big.Int).SetString(pcTokenBal.Value.Amount, 10)
+	denominator := big.NewInt(0).Add(fromAmountWithFee, poolAmountBig)
 	temp := big.NewInt(0).Mul(fromAmountWithFee, pcAmountBig)
 	amountOut := big.NewInt(0).Div(temp, denominator).Uint64()
 	fmt.Printf("Amount out: %v \n", amountOut)
+	priceBefore := float64(pcAmountBig.Uint64()) / float64(poolAmountBig.Uint64())
+	priceAfter := float64(pcAmountBig.Uint64()-amountOut) / float64(denominator.Uint64())
+	priceImpact := math.Abs(priceBefore-priceAfter) * 100 / priceBefore
+	fmt.Printf("price Impact: %v%%\n", priceImpact)
 
 	fmt.Println("============ SWAP ON RAYDIUM =============")
 	// create and mint token
@@ -315,12 +320,12 @@ func main() {
 	swapAccounts := []*solana.AccountMeta{
 		solana.NewAccountMeta(signer.PublicKey(), false, true),
 		solana.NewAccountMeta(solana.TokenProgramID, false, false),
-		solana.NewAccountMeta(ammAcc, true, false),  // amm account
+		solana.NewAccountMeta(ammAcc, true, false),                                                                          // amm account
 		solana.NewAccountMeta(solana.MustPublicKeyFromBase58("DhVpojXMTbZMuTaCgiiaFU7U8GvEEhnYo4G9BUdiEYGh"), false, false), // amm authority
 		solana.NewAccountMeta(solana.MustPublicKeyFromBase58("HboQAt9BXyejnh6SzdDNTx4WELMtRRPCr7pRSLpAW7Eq"), true, false),  // amm open orders
 		solana.NewAccountMeta(solana.MustPublicKeyFromBase58("6TzAjFPVZVMjbET8vUSk35J9U2dEWFCrnbHogsejRE5h"), true, false),  // amm target order
-		solana.NewAccountMeta(poolTokenAmm, true, false),  // pool_token_coin Amm
-		solana.NewAccountMeta(pcTokenAmm, true, false),  // pool_token_pc Amm
+		solana.NewAccountMeta(poolTokenAmm, true, false),                                                                    // pool_token_coin Amm
+		solana.NewAccountMeta(pcTokenAmm, true, false),                                                                      // pool_token_pc Amm
 		solana.NewAccountMeta(solana.MustPublicKeyFromBase58("DESVgJVGajEgKGXhb6XmqDHGz3VjdgP7rEVESBgxmroY"), false, false), // serum dex
 		solana.NewAccountMeta(solana.MustPublicKeyFromBase58("3tsrPhKrWHWMB8RiPaqNxJ8GnBhZnDqL4wcu5EAMFeBe"), true, false),  // serum market accounts
 		solana.NewAccountMeta(solana.MustPublicKeyFromBase58("ANHHchetdZVZBuwKWgz8RSfVgCDsRpW9i2BNWrmG9Jh9"), true, false),  // bid account

@@ -270,7 +270,7 @@ fn process_unshield(
                 );
 
                 if unshield_maker_associated_acc != *unshield_token_account.key {
-                    msg!("unshield_maker_associated_acc and key provided not match {}, {}", unshield_maker_associated_acc, *unshield_token_account.key);
+                    msg!("unshield maker's associated token account and key provided not match {}, {}", unshield_maker_associated_acc, *unshield_token_account.key);
                     return Err(BridgeError::InvalidKeysInInstruction.into());
                 }
             } else {
@@ -296,7 +296,7 @@ fn process_unshield(
             );
             let pda_associated_token_acc = get_associated_token_address(&pda, &token_key);
             if pda_associated_token_acc != *unshield_token_account.key {
-                msg!("unshield_maker_associated_acc and key provided not match {}, {}", pda_associated_token_acc, *unshield_token_account.key);
+                msg!("pda's associated token account and key provided not match {}, {}", pda_associated_token_acc, *unshield_token_account.key);
                 return Err(BridgeError::InvalidKeysInInstruction.into());
             }
         },

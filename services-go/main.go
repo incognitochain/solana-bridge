@@ -259,7 +259,7 @@ func main() {
 	fmt.Println("============ TEST SUBMIT BURN PROOF =============")
 	burnProofdAccounts := []*solana.AccountMeta{
 		solana.NewAccountMeta(vaultAssTokenAcc, true, false),
-		solana.NewAccountMeta(signerTokenAuthority, false, false),
+		solana.NewAccountMeta(signer.PublicKey(), false, false),
 		solana.NewAccountMeta(vaultTokenAuthority, false, false),
 		solana.NewAccountMeta(vaultAcc, true, false),
 		solana.NewAccountMeta(incognitoProxy, false, false),

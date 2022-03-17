@@ -459,7 +459,7 @@ fn _process_insert_entry(vault: &AccountInfo, program_id: &Pubkey, txid: &[u8; 3
         return Err(BridgeError::InvalidMapAccount.into())
     }
     let mut map_state = try_from_slice_unchecked::<Vault>(&vault.data.borrow())?;
-    let vault_len = map_state.map.len();
+
     if map_state.map.contains_key(txid) {
         return Err(BridgeError::InvalidUnshieldRequestUsed.into())
     }

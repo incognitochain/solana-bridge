@@ -19,32 +19,60 @@ use crate::error::BridgeError;
 
 pub enum BridgeInstruction {
 
-    ///// shield
+    ///   Request new shield to move token from Solana -> Incognito.
+    ///
+    ///   0. `[writable]` Token account to make shield request
+    ///   1. `[writable]` Vault token account to receive token from asker
+    ///   2. `[]` Incognito proxy which stores beacon list and bump seed to retrieve vault token account
+    ///   3. `[signer]` Shield maker address
+    ///   4. `[]` Spl Token program id
     Shield {
         /// shield info
         amount: u64,
         inc_address: [u8; 148],
     },
 
-    ///// unshield
+    ///   Request new unshield to move token from Incognito -> Solana.
+    ///
+    ///   0. `[writable]` Vault token account to transfer tokens to unshield maker
+    ///   1. `[]` Unshield maker address
+    ///   2. `[]` $vault_authority derived from `create_program_address(&[incognito proxy account])`
+    ///   3. `[writable]` Vault account to store transaction burn id
+    ///   4. `[]` Incognito proxy which stores beacon list and bump seed to retrieve vault token account
+    ///   5. `[]` Spl Token program id
+    ///   6. `[writable]` Associated token account of unshield maker
     UnShield {
         /// unshield info
         unshield_info: UnshieldRequest,
     },
 
-    ///// init beacon info
+    ///   Initializes a new Incognito proxy account.
+    ///
+    ///   0. `[]` $SYSVAR_RENT_PUBKEY to check account rent exempt
+    ///   1. `[writable]` Incognito proxy account
+    ///   2. `[writable]` Vault account
     InitBeacon {
         /// beacon info
         init_beacon_info: IncognitoProxy,
     },
 
-    ///// dapp interaction
+    /// Generic instruction to allow vault interact with any dapp on Solana.
+    ///
+    /// 0. `[signer]` Signer account
+    /// ...
     DappInteraction {
         /// beacon info
         dapp_request: DappRequest,
     },
 
-    ///// withdraw request
+    ///   Withdraw token from signer token account to shield back to Incognito.
+    ///
+    ///   0. `[writable]` Signer token account to withdraw
+    ///   1. `[writable]` Vault token account to receive token from signer
+    ///   2. `[]` Incognito proxy which stores beacon list and bump seed to retrieve vault token account
+    ///   3. `[signer]` signer request address
+    ///   4. `[]` $signer_authority derived from `create_program_address(&[signer account])`
+    ///   5. `[]` Spl Token program id
     WithdrawRequest {
         /// withdraw request
         amount: u64,

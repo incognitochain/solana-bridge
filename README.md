@@ -1,4 +1,4 @@
-# SOLANA BRIDGE
+# SOLANA <> INCOGNITO BRIDGE
 
 Build program:
 

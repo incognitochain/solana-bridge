@@ -95,11 +95,9 @@ fn process_shield(
         authority_signer_seeds: &[],
         token_program: token_program.clone(),
     })?;
-
-    msg!("Issue pToken to incognitoproxy,address,token,amount:{},{},{},{}", incognito_proxy.key,str::from_utf8(&inc_address[..]).unwrap(), token_id, amount);
-
+    msg!("Issue pToken to incognitoproxy,address,token,amount:{},{},{},{}",
+        incognito_proxy.key,str::from_utf8(&inc_address[..]).unwrap(), token_id, amount);
     Ok(())
-
 }
 
 /// [x] declare vars
@@ -461,7 +459,7 @@ fn _process_insert_entry(vault: &AccountInfo, program_id: &Pubkey, txid: &[u8; 3
         return Err(BridgeError::InvalidMapAccount.into())
     }
     let mut map_state = try_from_slice_unchecked::<Vault>(&vault.data.borrow())?;
-
+    let vault_len = map_state.map.len();
     if map_state.map.contains_key(txid) {
         return Err(BridgeError::InvalidUnshieldRequestUsed.into())
     }

@@ -1,4 +1,14 @@
-import { clusterApiUrl, Connection, Keypair, Transaction, SystemProgram, PublicKey, sendAndConfirmTransaction, TransactionInstruction, SYSVAR_RENT_PUBKEY } from "@solana/web3.js";
+import {
+    clusterApiUrl,
+    Connection,
+    Keypair,
+    Transaction,
+    SystemProgram,
+    PublicKey,
+    sendAndConfirmTransaction,
+    TransactionInstruction,
+    SYSVAR_RENT_PUBKEY,
+} from "@solana/web3.js";
 import {
     createInitializeMintInstruction,
     TOKEN_PROGRAM_ID,
@@ -17,7 +27,7 @@ import { deserialize, serialize } from "borsh";
 import BN = require("bn.js");
 // vault program
 const programId = new PublicKey(
-    "EaDziH5DPfTWNSWaS47e14fksE2ZUYzzqmzPoSGNQLmb"
+    "GqyrpvvqkcrnxF9TVhfz4CwXFTZ7QsXvjUJ5YaKTxsTH"
 );
 
 // connection
@@ -43,7 +53,6 @@ console.log(toHexString(swapMinter.secretKey));
 
 (async () => {
 
-    // 1) use build-in function
     // let mintPubkey = await createMint(
     //     connection, // conneciton
     //     feePayer, // fee payer
@@ -54,7 +63,6 @@ console.log(toHexString(swapMinter.secretKey));
     // console.log(`mint: ${mintPubkey.toBase58()}`);
     const mintPubkey = new PublicKey("EHheP6Wfyz65ve258TYQcfBHAAY4LsErnmXZozrgfvGr");
 
-    // 1) use build-in function
     // {
     //     let ata = await createAssociatedTokenAccount(
     //         connection, // connection
@@ -65,34 +73,6 @@ console.log(toHexString(swapMinter.secretKey));
     //     console.log(`ATA: ${ata.toBase58()}`);
     // }
 
-    // or
-
-    // 2) composed by yourself
-    // {
-    //     // calculate ATA
-    //     let ata = await getAssociatedTokenAddress(
-    //         mintPubkey, // mint
-    //         alice.publicKey // owner
-    //     );
-    //     console.log(`ATA: ${ata.toBase58()}`);
-    //
-    //     // if your wallet is off-curve, you should use
-    //     // let ata = await getAssociatedTokenAddress(
-    //     //   mintPubkey, // mint
-    //     //   alice.publicKey // owner
-    //     //   true, // allowOwnerOffCurve
-    //     // );
-    //
-    //     let tx = new Transaction().add(
-    //         createAssociatedTokenAccountInstruction(
-    //             feePayer.publicKey, // payer
-    //             ata, // ata
-    //             alice.publicKey, // owner
-    //             mintPubkey // mint
-    //         )
-    //     );
-    //     console.log(`txhash: ${await connection.sendTransaction(tx, [feePayer])}`);
-    // }
     const shieldMakerAccount = new PublicKey("5397KrEBCuEhdTjWF5B9xjVzGJR6MyxXLP3srbrWo2gD");
     console.log("shield maker ", shieldMakerAccount.toBytes());
     console.log("token id ", mintPubkey.toBytes());
@@ -128,31 +108,13 @@ console.log(toHexString(swapMinter.secretKey));
     //     );
     // const incognitoProxy = Keypair.generate();
     const incognitoProxy = Keypair.fromSecretKey(
-        Uint8Array.from(Uint8Array.from([129,152,8,90,11,237,119,136,226,30,152,40,165,175,69,0,215,156,76,140,181,201,194,117,238,115,190,156,30,250,76,17,66,78,46,18,44,247,254,251,157,123,249,174,144,116,79,76,244,181,24,166,12,76,139,249,66,153,116,123,91,89,6,87]))
+        Uint8Array.from(Uint8Array.from([1,32,1,180,196,196,194,138,131,140,129,93,57,212,62,16,189,184,95,10,130,23,46,62,235,244,36,129,118,128,90,165,145,13,201,90,31,129,31,66,128,226,131,38,62,26,247,105,53,191,73,129,149,6,15,181,230,132,82,2,48,139,210,10]))
     );
     console.log(`incognito proxy: ${incognitoProxy.publicKey.toBase58()}`);
     console.log("incognito proxy private key: ", incognitoProxy.secretKey.toString());
 
-    // const vaultAccount = Keypair.generate();
-    const vaultAccount = Keypair.fromSecretKey(
-        Uint8Array.from(Uint8Array.from([228,74,125,83,61,129,117,102,169,64,133,28,32,11,170,80,25,4,137,181,219,178,146,194,193,28,36,28,109,151,181,75,224,44,127,53,211,7,38,1,146,4,172,94,54,8,178,68,35,143,67,247,255,213,215,193,173,208,106,89,105,232,154,188]))
-    );
-    console.log(`vaultAccount: ${vaultAccount.publicKey.toBase58()}`);
-    console.log("vaultAccount private key: ", vaultAccount.secretKey.toString());
-    // const vaultAccount = new PublicKey("FmARrhNZxzA6aPXGuxeM71DMTzwMUYxqvpC8kh1pLR8Y");
-    // console.log("vault account ", vaultAccount.toBase58());
-    const beaconLengthInit = 1315;
-    const storeTxIdBurned =  1 + (4 + (200 * 33));
+    const beaconLengthInit = 1315 - 32;
     const lamportsExemptBeacon = await connection.getMinimumBalanceForRentExemption(beaconLengthInit, 'confirmed');
-    const lamportsExemptVault = await connection.getMinimumBalanceForRentExemption(storeTxIdBurned, 'confirmed');
-
-    const creatVaultInst = SystemProgram.createAccount({
-        fromPubkey: feePayer.publicKey,
-        newAccountPubkey: vaultAccount.publicKey,
-        lamports: lamportsExemptVault,
-        space: storeTxIdBurned,
-        programId,
-    });
 
     const creatIncognitoInst = SystemProgram.createAccount({
         fromPubkey: feePayer.publicKey,
@@ -161,28 +123,6 @@ console.log(toHexString(swapMinter.secretKey));
         space: beaconLengthInit,
         programId,
     });
-
-    // const transaction = new Transaction()
-    //     .add(
-    //         SystemProgram.createAccount({
-    //             fromPubkey: shieldMaker.publicKey,
-    //             newAccountPubkey: vaultAccount.publicKey,
-    //             lamports: lamportsExemptBeacon,
-    //             space: beaconLengthInit,
-    //             programId,
-    //         }),
-    //     )
-    //     // .add(
-    //     //     SystemProgram.createAccount({
-    //     //         fromPubkey: shieldMaker.publicKey,
-    //     //         newAccountPubkey: incognitoProxy.publicKey,
-    //     //         lamports: lamportsExemptVault,
-    //     //         space: beaconLengthInit,
-    //     //         programId,
-    //     //     }),
-    // ;
-    // const createAccountTx = await sendAndConfirmTransaction(connection, transaction, [shieldMaker, incognitoProxy, vaultAccount]);
-    // console.log("Create new and ", createAccountTx);
 
     const [
         vaultTokenAuthority,
@@ -201,8 +141,6 @@ console.log(toHexString(swapMinter.secretKey));
       true, // allowOwnerOffCurve
     );
     console.log(" vault token account :", vaultTokenAcc.toBase58());
-    // console.log(`token account owned by vault : ${vaultTokenAcc.toBase58()}`);
-    //
     // let tx = new Transaction().add(
     //     createAssociatedTokenAccountInstruction(
     //         feePayer.publicKey, // payer
@@ -211,8 +149,6 @@ console.log(toHexString(swapMinter.secretKey));
     //         mintPubkey // mint
     //     )
     // );
-    // console.log(`txhash: ${await connection.sendTransaction(tx, [feePayer])}`);
-    // let vaultTokenAcc = new PublicKey("6dvNfGjtaErEefhUkDJtPhsxKxCxVDCMuVvyEdWsEgQu");
 
     console.log("=============== Init Beacon =================");
 
@@ -223,22 +159,15 @@ console.log(toHexString(swapMinter.secretKey));
     let beacon3 = [122,69,179,100,37,117,17,36,0,4,211,125,150,102,106,180,218,127,238,200,104,84,250,183,23,31,209,229,22,117,248,73,56,120,112,2,188,187,152,44,70,228,25,160,250,255,40,216,180,239,183,235,175,79,66,41,119,82,195,70,103,102,135,73];
     let beacon4 = [24,171,11,173,118,80,213,52,20,186,77,213,182,249,188,70,15,37,228,129,102,45,183,139,139,174,147,32,130,179,168,171,36,79,30,237,44,11,200,229,108,224,117,224,206,11,62,235,127,101,194,116,209,213,122,41,77,229,19,60,199,168,81,25];
 
-    let temp = vaultAccount.publicKey.toBytes();
-    let pubkeyArray:number[] = Array.from(temp);
-    console.log("Vault account key");
-    console.log(temp);
-    console.log(pubkeyArray);
     const init_beacon_instruction = new TransactionInstruction({
         keys: [
             {pubkey: SYSVAR_RENT_PUBKEY, isSigner: false, isWritable: false},
             {pubkey: incognitoProxy.publicKey, isSigner: false, isWritable: true},
-            {pubkey: vaultAccount.publicKey, isSigner: false, isWritable: true},
         ],
         programId,
         data: Buffer.from(
             Uint8Array.of(
                 2,
-                ...pubkeyArray,
                 ...new BN(bumpInit).toArray("le", 1),
                 ...new BN(beaconLength).toArray("le", 1),
                 ...beacon1,
@@ -250,11 +179,40 @@ console.log(toHexString(swapMinter.secretKey));
     });
     console.log("Beacon instruction length: ", init_beacon_instruction.data.length);
     // todo: query beacon state before init
+
+    const [
+        vault_pda_account,
+        _,
+    ] = await PublicKey.findProgramAddress(
+        [
+            incognitoProxy.publicKey.toBuffer(),
+            shieldMaker.publicKey.toBuffer(),
+        ],
+        programId,
+    );
+
+    let pubkeyArray:number[] = Array.from(shieldMaker.publicKey.toBytes());
+    const init_vault_instruction = new TransactionInstruction({
+        keys: [
+            {pubkey: feePayer.publicKey, isSigner: true, isWritable: false},
+            {pubkey: incognitoProxy.publicKey, isSigner: false, isWritable: false},
+            {pubkey: vault_pda_account, isSigner: false, isWritable: true},
+            {pubkey: SystemProgram.programId, isSigner: false, isWritable: false},
+        ],
+        programId,
+        data: Buffer.from(
+            Uint8Array.of(
+                5,
+                ...pubkeyArray,
+            )
+        ),
+    });
+
     // create transaction init beacon list
     const trans_init_beacon = await setPayerAndBlockhashTransaction(
-        [creatIncognitoInst, creatVaultInst, init_beacon_instruction]
+        [creatIncognitoInst, init_beacon_instruction, init_vault_instruction]
     );
-    const signature_init_beacon = await signAndSendTransaction(trans_init_beacon, [feePayer, vaultAccount, incognitoProxy]);
+    const signature_init_beacon = await signAndSendTransaction(trans_init_beacon, [feePayer, incognitoProxy]);
     await connection.confirmTransaction(signature_init_beacon);
     console.log(`init beacon txhash: ${signature_init_beacon}`);
 
@@ -315,7 +273,7 @@ console.log(toHexString(swapMinter.secretKey));
             {pubkey: vaultTokenAcc, isSigner: false, isWritable: true},
             {pubkey: shieldMakerAccount, isSigner: false, isWritable: true},
             {pubkey: vaultTokenAuthority, isSigner: false, isWritable: false},
-            {pubkey: vaultAccount.publicKey, isSigner: false, isWritable: true},
+            {pubkey: vault_pda_account, isSigner: false, isWritable: true},
             {pubkey: incognitoProxy.publicKey, isSigner: false, isWritable: false},
             {pubkey: TOKEN_PROGRAM_ID, isSigner: false, isWritable: false},
         ],

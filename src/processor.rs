@@ -43,11 +43,11 @@ pub fn process_instruction(
             process_unshield(accounts, unshield_info, program_id)
         }
         BridgeInstruction::InitBeacon { init_beacon_info } => {
-            msg!("Instruction: init beacon list");
+            msg!("Instruction: Init beacon list");
             process_init_beacon(accounts, init_beacon_info, program_id)
         }
         BridgeInstruction::DappInteraction {dapp_request} => {
-            msg!("Instruction: dapp interaction");
+            msg!("Instruction: Dapp interaction");
             process_dapp_interaction(accounts, dapp_request, program_id)
         }
         BridgeInstruction::WithdrawRequest{ amount, inc_address } => {
@@ -368,7 +368,7 @@ fn process_init_vault_account(
         program_id
     );
 
-    if vault_pda != *vault_pda_acc.key || !vault_pda_acc.is_writable {
+    if vault_pda != *vault_pda_acc.key || !vault_pda_acc.data_is_empty() || !vault_pda_acc.is_writable {
         return Err(BridgeError::InvalidMapAccount.into())
     }
 
@@ -498,10 +498,6 @@ fn process_dapp_interaction(
 }
 
 fn _process_init_map(vault: &AccountInfo) -> ProgramResult {
-    if !vault.is_writable || !vault.data_is_empty() {
-        return Err(BridgeError::InvalidMapAccount.into())
-    }
-
     let mut map_state = try_from_slice_unchecked::<Vault>(&vault.data.borrow()).unwrap();
     if map_state.is_initialized != 0 {
         msg!("map initialized");

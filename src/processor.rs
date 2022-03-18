@@ -11,12 +11,13 @@ use solana_program::{
     secp256k1_recover::secp256k1_recover,
     keccak::hash,
     borsh::try_from_slice_unchecked,
+    system_instruction,
 };
 use std::{
     collections::BTreeMap,
     str,
 };
-use borsh::{BorshSerialize, BorshDeserialize};
+use borsh::{BorshSerialize};
 use spl_token::state::Account as TokenAccount;
 use arrayref::{array_refs, array_ref};
 use crate::{error::BridgeError, instruction::BridgeInstruction, state::{UnshieldRequest, IncognitoProxy, Vault}};
@@ -52,6 +53,10 @@ pub fn process_instruction(
         BridgeInstruction::WithdrawRequest{ amount, inc_address } => {
             msg!("Instruction: Withdraw Request");
             process_withdraw_request(accounts, amount, inc_address, program_id)
+        }
+        BridgeInstruction::InitVaultAccount{ unshield_maker } => {
+            msg!("Instruction: Init vault account");
+            process_init_vault_account(accounts, &unshield_maker, program_id)
         }
     }
 }
@@ -118,18 +123,13 @@ fn process_unshield(
     let vault_token_account = next_account_info(account_info_iter)?;
     let unshield_maker = next_account_info(account_info_iter)?;
     let vault_authority_account = next_account_info(account_info_iter)?;
-    let vault_account = next_account_info(account_info_iter)?;
+    let vault_pda_account = next_account_info(account_info_iter)?;
     let incognito_proxy = next_account_info(account_info_iter)?;
     let token_program = next_account_info(account_info_iter)?;
     let unshield_token_account = next_account_info(account_info_iter)?;
     let incognito_proxy_info = IncognitoProxy::unpack_unchecked(&incognito_proxy.data.borrow())?;
     if !incognito_proxy_info.is_initialized() {
         return Err(BridgeError::BeaconsUnInitialized.into())
-    }
-
-    if incognito_proxy_info.vault != *vault_account.key {
-        msg!("Send to wrong vault account");
-        return Err(ProgramError::IncorrectProgramId);
     }
 
     if incognito_proxy.owner != program_id {
@@ -240,7 +240,19 @@ fn process_unshield(
         return Err(BridgeError::InvalidBeaconMerkleTree.into());
     }
 
-    _process_insert_entry(vault_account, program_id, tx_id)?;
+    // verify vault pda account
+    let (vault_pda, _) = Pubkey::find_program_address(
+        &[
+            incognito_proxy.key.as_ref(),
+            unshield_maker.key.as_ref(),
+        ],
+        program_id
+    );
+    if vault_pda != *vault_pda_account.key {
+        msg!("Mismatch vault padd and vault pda provided {}, {}", vault_pda, vault_pda_account.key);
+        return Err(BridgeError::InvalidMapAccount.into());
+    }
+    _process_insert_entry(vault_pda_account, program_id, tx_id)?;
 
     // prepare to transfer token to user
     let authority_signer_seeds = &[
@@ -315,9 +327,8 @@ fn process_init_beacon(
     let account_info_iter = &mut accounts.iter();
     let rent = &Rent::from_account_info(next_account_info(account_info_iter)?)?;
     let incognito_proxy = next_account_info(account_info_iter)?;
-    let vault_acc = next_account_info(account_info_iter)?;
+
     assert_rent_exempt(rent, incognito_proxy)?;
-    assert_rent_exempt(rent, vault_acc)?;
     let mut incognito_proxy_info = assert_uninitialized::<IncognitoProxy>(incognito_proxy)?;
     if incognito_proxy.owner != program_id {
         msg!("Invalid incognito proxy");
@@ -326,10 +337,63 @@ fn process_init_beacon(
 
     incognito_proxy_info.is_initialized = init_beacon_info.is_initialized;
     incognito_proxy_info.bump_seed = init_beacon_info.bump_seed;
-    incognito_proxy_info.vault = init_beacon_info.vault;
     incognito_proxy_info.beacons = init_beacon_info.beacons;
     IncognitoProxy::pack(incognito_proxy_info, &mut incognito_proxy.data.borrow_mut())?;
-    _process_init_map(vault_acc)?;
+
+    Ok(())
+}
+
+// init vault account for each user account
+fn process_init_vault_account(
+    accounts: &[AccountInfo],
+    unshield_account: &Pubkey,
+    program_id: &Pubkey,
+) -> ProgramResult {
+    let account_info_iter = &mut accounts.iter();
+    let authority_account = next_account_info(account_info_iter)?;
+    let incognito_proxy = next_account_info(account_info_iter)?;
+    let vault_pda_acc = next_account_info(account_info_iter)?;
+    let system_program = next_account_info(account_info_iter)?;
+    if !authority_account.is_signer {
+        return Err(ProgramError::MissingRequiredSignature)
+    }
+    let rent = Rent::get()?;
+    let rent_lamports = rent.minimum_balance(Vault::LEN);
+
+    let (vault_pda, vault_pda_bump) = Pubkey::find_program_address(
+        &[
+            incognito_proxy.key.as_ref(),
+            unshield_account.as_ref(),
+        ],
+        program_id
+    );
+
+    if vault_pda != *vault_pda_acc.key || !vault_pda_acc.is_writable {
+        return Err(BridgeError::InvalidMapAccount.into())
+    }
+
+    let create_map_ix = &system_instruction::create_account(
+        authority_account.key,
+        vault_pda_acc.key,
+        rent_lamports,
+        Vault::LEN.try_into().unwrap(),
+        program_id
+    );
+
+    invoke_signed(
+        create_map_ix,
+        &[
+            authority_account.clone(),
+            vault_pda_acc.clone(),
+            system_program.clone()
+        ],
+        &[&[
+            incognito_proxy.key.as_ref(),
+            unshield_account.as_ref(),
+            &[vault_pda_bump]
+        ]]
+    )?;
+    _process_init_map(vault_pda_acc)?;
 
     Ok(())
 }
@@ -434,7 +498,7 @@ fn process_dapp_interaction(
 }
 
 fn _process_init_map(vault: &AccountInfo) -> ProgramResult {
-    if !vault.is_writable || vault.data.borrow().len() < 1 {
+    if !vault.is_writable || !vault.data_is_empty() {
         return Err(BridgeError::InvalidMapAccount.into())
     }
 
@@ -459,6 +523,9 @@ fn _process_insert_entry(vault: &AccountInfo, program_id: &Pubkey, txid: &[u8; 3
         return Err(BridgeError::InvalidMapAccount.into())
     }
     let mut map_state = try_from_slice_unchecked::<Vault>(&vault.data.borrow())?;
+    if map_state.map.len() >= Vault::MAX_UNSHIELD_REQUEST {
+        return Err(BridgeError::InvalidVaultAccount.into());
+    }
 
     if map_state.map.contains_key(txid) {
         return Err(BridgeError::InvalidUnshieldRequestUsed.into())
@@ -490,7 +557,7 @@ fn _verify_vault_token_account(incognito_proxy: AccountInfo, vault_token_account
         return Err(ProgramError::IncorrectProgramId);
     }
 
-    Ok((vault_token_account_info.mint))
+    Ok(vault_token_account_info.mint)
 }
 
 // check rent exempt

@@ -78,6 +78,17 @@ pub enum BridgeInstruction {
         amount: u64,
         inc_address: [u8; 148],
     },
+
+    ///  Init pda account to store burn id prevent double spend.
+    ///
+    ///   0. `[signer]` Authority account to pay create account fee
+    ///   1. `[]` Incognito proxy which stores beacon list and bump seed to retrieve vault token account
+    ///   2. `[writable]` $vault_pda_acc derived from `create_program_address(&[incognito proxy, unshield maker account])`
+    ///   3. `[]` system program id
+    InitVaultAccount {
+        /// init vault account request
+        unshield_maker: Pubkey,
+    },
 }
 
 impl BridgeInstruction {
@@ -150,7 +161,6 @@ impl BridgeInstruction {
                 }
             },
             2 => {
-                let (vault_key, rest) = Self::unpack_pubkey(rest)?;
                 let (bump_seed, rest) = Self::unpack_u8(rest)?;
                 let (beacon_list_len, mut rest) =  Self::unpack_u8(rest)?;
                 let mut beacons = Vec::with_capacity(beacon_list_len as usize + 1);
@@ -164,7 +174,6 @@ impl BridgeInstruction {
                     init_beacon_info: IncognitoProxy{
                         is_initialized: true,
                         bump_seed,
-                        vault: vault_key,
                         beacons
                     }   
                 }
@@ -180,6 +189,12 @@ impl BridgeInstruction {
                         num_acc: acc_len,
                         sign_index
                     }
+                }
+            }
+            5 => {
+                let (unshield_maker, _) = Self::unpack_pubkey(rest)?;
+                Self::InitVaultAccount {
+                    unshield_maker,
                 }
             }
             _ => return Err(InvalidInstruction.into()),

@@ -72,6 +72,9 @@ pub enum BridgeError {
     /// Invalid meta type.
     #[error("Invalid meta type")]
     InvalidMetaType,
+    /// The vault pda account for unshield reached max capacity.
+    #[error("Vault pda reached max capacity")]
+    InvalidVaultAccount,
 }
 
 impl From<BridgeError> for ProgramError {

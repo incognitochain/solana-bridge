@@ -1,7 +1,6 @@
 use solana_program::{
     program_error::ProgramError,
     program_pack::{IsInitialized, Pack, Sealed},
-    pubkey::{Pubkey, PUBKEY_BYTES},
     secp256k1_recover::{Secp256k1Pubkey, SECP256K1_PUBLIC_KEY_LENGTH},
 };
 use std::{collections::BTreeMap};
@@ -13,11 +12,12 @@ use crate::error::BridgeError;
 #[derive(BorshSerialize, BorshDeserialize, Clone, Debug)]
 pub struct Vault {
     pub is_initialized: u8,
-    pub map: BTreeMap<[u8; 32], bool> // 100
+    pub map: BTreeMap<[u8; 32], bool>
 }
 
 impl Vault {
-    const LEN: usize = 1 + (4 + (100 * 33)); // 100 tx id to store
+    pub const LEN: usize = 1 + (4 + (300 * 33)); // 300 txid to store on each pda
+    pub const MAX_UNSHIELD_REQUEST: usize = 300;
 }
 
 /// ====== INCOGNITO PROXY =======
@@ -32,8 +32,6 @@ pub struct IncognitoProxy {
     pub is_initialized: bool,
     // bump seed
     pub bump_seed: u8,
-    // vault key
-    pub vault: Pubkey,
     /// beacon list
     pub beacons: Vec<Secp256k1Pubkey>, 
 }
@@ -56,7 +54,6 @@ impl IncognitoProxy {
     pub fn init(&mut self, params: IncognitoProxy) {
         self.is_initialized = params.is_initialized;
         self.bump_seed = params.bump_seed;
-        self.vault = params.vault;
         self.beacons = params.beacons;
     }
 }
@@ -64,21 +61,19 @@ impl IncognitoProxy {
 impl Sealed for IncognitoProxy {}
 
 impl Pack for IncognitoProxy {
-    /// 1 + 1 + 32 + 1 + 64 * 20
-    const LEN: usize = 1315;
+    /// 1 + 1 + 1 + 64 * 20
+    const LEN: usize = 1315 - 32;
     fn unpack_from_slice(src: &[u8]) -> Result<Self, ProgramError> {
         let src = array_ref![src, 0, IncognitoProxy::LEN];
         let (
             is_initialized,
             bump_seed,
-            vault_key,
             beacon_len,
             data_flat
         ) = array_refs![
             src, 
             1,
-            1, 
-            PUBKEY_BYTES, 
+            1,
             1, 
             SECP256K1_PUBLIC_KEY_LENGTH * MAX_BEACON_ADDRESSES
         ];
@@ -102,7 +97,6 @@ impl Pack for IncognitoProxy {
         Ok(IncognitoProxy {
             is_initialized,
             bump_seed: u8::from_le_bytes(*bump_seed),
-            vault: Pubkey::new_from_array(*vault_key),
             beacons
         })
     }
@@ -112,21 +106,18 @@ impl Pack for IncognitoProxy {
         let (
             is_initialized,
             bump_seed,
-            vault,
             beacon_len,
             data_flat
         ) = mut_array_refs![
             dst, 
             1, 
             1,
-            PUBKEY_BYTES, 
             1, 
             SECP256K1_PUBLIC_KEY_LENGTH * MAX_BEACON_ADDRESSES
         ];
         *beacon_len = u8::try_from(self.beacons.len()).unwrap().to_le_bytes();
         *bump_seed = self.bump_seed.to_le_bytes();
         pack_bool(self.is_initialized, is_initialized);
-        vault.copy_from_slice(self.vault.as_ref());
 
         let mut offset = 0;
         // beacons

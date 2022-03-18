@@ -249,7 +249,7 @@ fn process_unshield(
         program_id
     );
     if vault_pda != *vault_pda_account.key {
-        msg!("Mismatch vault padd and vault pda provided {}, {}", vault_pda, vault_pda_account.key);
+        msg!("Mismatch vault pda generated and vault pda provided {}, {}", vault_pda, vault_pda_account.key);
         return Err(BridgeError::InvalidMapAccount.into());
     }
     _process_insert_entry(vault_pda_account, program_id, tx_id)?;

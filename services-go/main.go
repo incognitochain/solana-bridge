@@ -20,8 +20,8 @@ import (
 
 const SHIELD = "Shield"
 const UNSHIELD = "Unshield"
-const INCOGNITO_PROXY = "5Tq3wvYAD6hRonCiUx62k37gELxxEABSYCkaqrSP3ztv"
-const PROGRAM_ID = "BKGhwbiTHdUxcuWzZtDWyioRBieDEXTtgEk8u1zskZnk"
+const INCOGNITO_PROXY = "AmEJvf5URe4MpcCKWXZSJrNuvwdKNdkt5YVDs3TUMMHB"
+const PROGRAM_ID = "GqyrpvvqkcrnxF9TVhfz4CwXFTZ7QsXvjUJ5YaKTxsTH"
 const VAULT_ACC = "G65gJS4feG1KXpfDXiySUGT7c6QosCJcGa4nUZsF55Du"
 const SYNC_NATIVE_TAG = 0x11
 const NEW_TOKEN_ACC = 0x1
@@ -37,7 +37,6 @@ func main() {
 
 	program := solana.MustPublicKeyFromBase58(PROGRAM_ID)
 	incognitoProxy := solana.MustPublicKeyFromBase58(INCOGNITO_PROXY)
-	vaultAcc := solana.MustPublicKeyFromBase58(VAULT_ACC)
 	vaultTokenAuthority, _, err := solana.FindProgramAddress(
 		[][]byte{incognitoProxy.Bytes()},
 		program,
@@ -47,6 +46,16 @@ func main() {
 		panic(err)
 	}
 	shieldMaker, err := solana.PrivateKeyFromBase58("28BD5MCpihGHD3zUfPv4VcBizis9zxFdaj9fGJmiyyLmezT94FRd9XiiLjz5gasgyX3TmH1BU4scdVE6gzDFzrc7")
+	if err != nil {
+		panic(err)
+	}
+	vaultAcc, _, err := solana.FindProgramAddress(
+		[][]byte{
+			incognitoProxy.Bytes(),
+			shieldMaker.PublicKey().Bytes(),
+		},
+		program,
+	)
 	if err != nil {
 		panic(err)
 	}
@@ -252,7 +261,7 @@ func main() {
 	}
 	sig, err = SignAndSendTx(tx3, signers3, rpcClient)
 	if err != nil {
-		//panic(err)
+		panic(err)
 	}
 	spew.Dump(sig)
 

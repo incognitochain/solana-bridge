@@ -1,18 +1,19 @@
 # SOLANA <> INCOGNITO BRIDGE
 Bridge program to bring privacy for Solana ecosystem.
-#PROGRAM GUIDE
 
-###Prerequisites
+# PROGRAM GUIDE
+
+### Prerequisites
 - Rust ([link](https://doc.rust-lang.org/cargo/getting-started/installation.html))
 - Solana client tool ([link](https://docs.solana.com/cli/install-solana-cli-tools)) 
 
-###Build program:
+### Build program:
 
 ```sh
 cargo build-bpf 
 ```
 
-###Deploy program:
+### Deploy program:
 
 ```sh
 solna program deploy $PROGRAM_PATH
@@ -28,7 +29,7 @@ solna program deploy $PROGRAM_PATH
 - Golang 
 - Typescript
 
-#INSTRUCTIONS
+# INSTRUCTIONS
 
 ## Init incognito proxy instruction
 
@@ -100,14 +101,16 @@ solna program deploy $PROGRAM_PATH
 
 ## Withdraw request instruction
 
-    Request new shield to move token from Solana -> Incognito.
-        0. `[writable]` Token account to make shield request
-        1. `[writable]` Vault token account to receive token from asker
-        2. `[]` Incognito proxy which stores beacon list and bump seed to retrieve vault token account
-        3. `[signer]` Shield maker address
-        4. `[]` Spl Token program id
-    Shield {
-        /// shield info
+    ///   Withdraw token from signer token account to shield back to Incognito.
+    ///
+    ///   0. `[writable]` Signer token account to withdraw
+    ///   1. `[writable]` Vault token account to receive token from signer
+    ///   2. `[]` Incognito proxy which stores beacon list and bump seed to retrieve vault token account
+    ///   3. `[signer]` signer request address
+    ///   4. `[]` $signer_authority derived from `create_program_address(&[signer account])`
+    ///   5. `[]` Spl Token program id
+    WithdrawRequest {
+        /// withdraw request
         amount: u64,
         inc_address: [u8; 148],
     }

@@ -43,19 +43,6 @@ solna program deploy $PROGRAM_PATH
         init_beacon_info: IncognitoProxy,
     }
 
-## Init vault account instruction
-
-    ///  Init pda account to store burn id prevent double spend.
-    ///
-    ///   0. `[signer]` Authority account to pay create account fee
-    ///   1. `[]` Incognito proxy which stores beacon list and bump seed to retrieve vault token account
-    ///   2. `[writable]` $vault_pda_acc derived from `create_program_address(&[incognito proxy, unshield maker account])`
-    ///   3. `[]` system program id
-    InitVaultAccount {
-        /// init vault account request
-        unshield_maker: Pubkey,
-    }
-
 ## Shield instruction
 
     ///   Request new shield to move token from Solana -> Incognito.

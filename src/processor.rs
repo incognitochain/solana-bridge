@@ -14,13 +14,12 @@ use solana_program::{
     system_instruction,
 };
 use std::{
-    collections::BTreeMap,
     str,
 };
 use borsh::{BorshSerialize};
 use spl_token::state::Account as TokenAccount;
 use arrayref::{array_refs, array_ref};
-use crate::{error::BridgeError, instruction::BridgeInstruction, state::{UnshieldRequest, IncognitoProxy, Vault}};
+use crate::{error::BridgeError, instruction::BridgeInstruction, state::{UnshieldRequest, IncognitoProxy, PDABurnId}};
 use crate::state::{DappRequest};
 use spl_associated_token_account::{get_associated_token_address};
 
@@ -54,10 +53,6 @@ pub fn process_instruction(
             msg!("Instruction: Withdraw Request");
             process_withdraw_request(accounts, amount, inc_address, program_id)
         }
-        BridgeInstruction::InitVaultAccount{ unshield_maker } => {
-            msg!("Instruction: Init vault account");
-            process_init_vault_account(accounts, &unshield_maker, program_id)
-        }
     }
 }
 
@@ -83,7 +78,7 @@ fn process_shield(
     }
 
     if *vault_token_account.owner != spl_token::id() {
-        msg!("Vault token account must be owned by spl token");
+        msg!("PDABurnId token account must be owned by spl token");
         return Err(ProgramError::IncorrectProgramId);
     }
 
@@ -123,13 +118,19 @@ fn process_unshield(
     let vault_token_account = next_account_info(account_info_iter)?;
     let unshield_maker = next_account_info(account_info_iter)?;
     let vault_authority_account = next_account_info(account_info_iter)?;
-    let vault_pda_account = next_account_info(account_info_iter)?;
+    let pda_account = next_account_info(account_info_iter)?;
     let incognito_proxy = next_account_info(account_info_iter)?;
     let token_program = next_account_info(account_info_iter)?;
     let unshield_token_account = next_account_info(account_info_iter)?;
+    let authority_account = next_account_info(account_info_iter)?;
+    let system_program = next_account_info(account_info_iter)?;
     let incognito_proxy_info = IncognitoProxy::unpack_unchecked(&incognito_proxy.data.borrow())?;
     if !incognito_proxy_info.is_initialized() {
-        return Err(BridgeError::BeaconsUnInitialized.into())
+        return Err(BridgeError::BeaconsUnInitialized.into());
+    }
+
+    if !authority_account.is_signer {
+        return Err(BridgeError::InvalidAuthorityAccount.into())
     }
 
     if incognito_proxy.owner != program_id {
@@ -239,20 +240,8 @@ fn process_unshield(
         msg!("Invalid instruction root");
         return Err(BridgeError::InvalidBeaconMerkleTree.into());
     }
-
-    // verify vault pda account
-    let (vault_pda, _) = Pubkey::find_program_address(
-        &[
-            incognito_proxy.key.as_ref(),
-            unshield_maker.key.as_ref(),
-        ],
-        program_id
-    );
-    if vault_pda != *vault_pda_account.key {
-        msg!("Mismatch vault pda generated and vault pda provided {}, {}", vault_pda, vault_pda_account.key);
-        return Err(BridgeError::InvalidMapAccount.into());
-    }
-    _process_insert_entry(vault_pda_account, program_id, tx_id)?;
+    // verify pda generated from tx burn id not initialized
+    _process_tx_burn_id(pda_account, incognito_proxy, authority_account, system_program, program_id, tx_id)?;
 
     // prepare to transfer token to user
     let authority_signer_seeds = &[
@@ -339,61 +328,6 @@ fn process_init_beacon(
     incognito_proxy_info.bump_seed = init_beacon_info.bump_seed;
     incognito_proxy_info.beacons = init_beacon_info.beacons;
     IncognitoProxy::pack(incognito_proxy_info, &mut incognito_proxy.data.borrow_mut())?;
-
-    Ok(())
-}
-
-// init vault account for each user account
-fn process_init_vault_account(
-    accounts: &[AccountInfo],
-    unshield_account: &Pubkey,
-    program_id: &Pubkey,
-) -> ProgramResult {
-    let account_info_iter = &mut accounts.iter();
-    let authority_account = next_account_info(account_info_iter)?;
-    let incognito_proxy = next_account_info(account_info_iter)?;
-    let vault_pda_acc = next_account_info(account_info_iter)?;
-    let system_program = next_account_info(account_info_iter)?;
-    if !authority_account.is_signer {
-        return Err(ProgramError::MissingRequiredSignature)
-    }
-    let rent = Rent::get()?;
-    let rent_lamports = rent.minimum_balance(Vault::LEN);
-
-    let (vault_pda, vault_pda_bump) = Pubkey::find_program_address(
-        &[
-            incognito_proxy.key.as_ref(),
-            unshield_account.as_ref(),
-        ],
-        program_id
-    );
-
-    if vault_pda != *vault_pda_acc.key || !vault_pda_acc.data_is_empty() || !vault_pda_acc.is_writable {
-        return Err(BridgeError::InvalidMapAccount.into())
-    }
-
-    let create_map_ix = &system_instruction::create_account(
-        authority_account.key,
-        vault_pda_acc.key,
-        rent_lamports,
-        Vault::LEN.try_into().unwrap(),
-        program_id
-    );
-
-    invoke_signed(
-        create_map_ix,
-        &[
-            authority_account.clone(),
-            vault_pda_acc.clone(),
-            system_program.clone()
-        ],
-        &[&[
-            incognito_proxy.key.as_ref(),
-            unshield_account.as_ref(),
-            &[vault_pda_bump]
-        ]]
-    )?;
-    _process_init_map(vault_pda_acc)?;
 
     Ok(())
 }
@@ -497,38 +431,59 @@ fn process_dapp_interaction(
     Ok(())
 }
 
-fn _process_init_map(vault: &AccountInfo) -> ProgramResult {
-    let mut map_state = try_from_slice_unchecked::<Vault>(&vault.data.borrow()).unwrap();
-    if map_state.is_initialized != 0 {
-        msg!("map initialized");
-        return Err(BridgeError::AccInitialized.into())
+fn _process_tx_burn_id<'a>(
+    pda_account: &AccountInfo<'a>,
+    incognito_proxy: &AccountInfo<'a>,
+    authority_account: &AccountInfo<'a>,
+    system_program: &AccountInfo<'a>,
+    program_id: &Pubkey, 
+    txid: &[u8; 32],
+) -> ProgramResult {
+    // verify vault pda account
+    let (pda, bump) = Pubkey::find_program_address(
+        &[
+            incognito_proxy.key.as_ref(),
+            txid.as_ref(),
+        ],
+        program_id
+    );
+    if pda != *pda_account.key {
+        msg!("Mismatch pda generated and pda provided {}, {}", pda, pda_account.key);
+        return Err(BridgeError::InvalidPDAAccount.into());
+    }
+    if !pda_account.data_is_empty() || !pda_account.is_writable {
+        msg!("Pda account is not writable or existed");
+        return Err(BridgeError::InvalidPDAAccount.into());
     }
 
-    let empty_map = BTreeMap::new();
+    let rent = Rent::get()?;
+    let rent_lamports = rent.minimum_balance(PDABurnId::LEN);
 
-    map_state.is_initialized = 1;
-    map_state.map = empty_map;
+    let create_map_ix = &system_instruction::create_account(
+        authority_account.key,
+        pda_account.key,
+        rent_lamports,
+        PDABurnId::LEN.try_into().unwrap(),
+        program_id
+    );
 
-    map_state.serialize(&mut &mut vault.data.borrow_mut()[..])?;
-
-    Ok(())
-}
-
-fn _process_insert_entry(vault: &AccountInfo, program_id: &Pubkey, txid: &[u8; 32]) -> ProgramResult {
-    if vault.data.borrow()[0] == 0 || *vault.owner != *program_id {
-        return Err(BridgeError::InvalidMapAccount.into())
-    }
-    let mut map_state = try_from_slice_unchecked::<Vault>(&vault.data.borrow())?;
-    if map_state.map.len() >= Vault::MAX_UNSHIELD_REQUEST {
-        return Err(BridgeError::InvalidVaultAccount.into());
-    }
-
-    if map_state.map.contains_key(txid) {
-        return Err(BridgeError::InvalidUnshieldRequestUsed.into())
-    }
-
-    map_state.map.insert(*txid, true);
-    map_state.serialize(&mut &mut vault.data.borrow_mut()[..])?;
+    invoke_signed(
+        create_map_ix,
+        &[
+            authority_account.clone(),
+            pda_account.clone(),
+            system_program.clone()
+        ],
+        &[&[
+            incognito_proxy.key.as_ref(),
+            txid.as_ref(),
+            &[bump]
+        ]]
+    )?;
+    
+    let mut pda_tx_burn = try_from_slice_unchecked::<PDABurnId>(&pda_account.try_borrow_data()?)?;
+    pda_tx_burn.is_initialized = true;
+    pda_tx_burn.serialize(&mut &mut pda_account.data.borrow_mut()[..])?;
 
     Ok(())
 }

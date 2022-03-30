@@ -1,7 +1,7 @@
 use solana_program::{
     program_error::ProgramError,
     msg,
-    pubkey::{Pubkey, PUBKEY_BYTES},
+    pubkey::{Pubkey},
     secp256k1_recover::{Secp256k1Pubkey},
     instruction::{AccountMeta, Instruction},
 };
@@ -77,17 +77,6 @@ pub enum BridgeInstruction {
         /// withdraw request
         amount: u64,
         inc_address: [u8; 148],
-    },
-
-    ///  Init pda account to store burn id prevent double spend.
-    ///
-    ///   0. `[signer]` Authority account to pay create account fee
-    ///   1. `[]` Incognito proxy which stores beacon list and bump seed to retrieve vault token account
-    ///   2. `[writable]` $vault_pda_acc derived from `create_program_address(&[incognito proxy, unshield maker account])`
-    ///   3. `[]` system program id
-    InitVaultAccount {
-        /// init vault account request
-        unshield_maker: Pubkey,
     },
 }
 
@@ -189,12 +178,6 @@ impl BridgeInstruction {
                         num_acc: acc_len,
                         sign_index
                     }
-                }
-            }
-            5 => {
-                let (unshield_maker, _) = Self::unpack_pubkey(rest)?;
-                Self::InitVaultAccount {
-                    unshield_maker,
                 }
             }
             _ => return Err(InvalidInstruction.into()),
@@ -310,16 +293,6 @@ impl BridgeInstruction {
                 Err(BridgeError::InvalidBoolValue.into())
             }
         }
-    }
-
-    fn unpack_pubkey(input: &[u8]) -> Result<(Pubkey, &[u8]), ProgramError> {
-        if input.len() < PUBKEY_BYTES {
-            msg!("Pubkey cannot be unpacked");
-            return Err(InstructionUnpackError.into());
-        }
-        let (key, rest) = input.split_at(PUBKEY_BYTES);
-        let pk = Pubkey::new(key);
-        Ok((pk, rest))
     }
 
     fn unpack_nbytes(input: &[u8], n: u8) -> Result<(&[u8], &[u8]), ProgramError> {

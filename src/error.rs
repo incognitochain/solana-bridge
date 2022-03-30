@@ -57,9 +57,9 @@ pub enum BridgeError {
     /// Close token account failed.
     #[error("Close token account failed")]
     CloseTokenAccountFailed,
-    /// Invalid map account.
-    #[error("Invalid map account")]
-    InvalidMapAccount,
+    /// Invalid pda account.
+    #[error("Invalid pda account to mark tx burned")]
+    InvalidPDAAccount,
     /// Unshield request used.
     #[error("Unshield request used")]
     InvalidUnshieldRequestUsed,
@@ -75,6 +75,9 @@ pub enum BridgeError {
     /// The vault pda account for unshield reached max capacity.
     #[error("Vault pda reached max capacity")]
     InvalidVaultAccount,
+    /// The authority account is not signer.
+    #[error("Invalid authority account")]
+    InvalidAuthorityAccount,
 }
 
 impl From<BridgeError> for ProgramError {

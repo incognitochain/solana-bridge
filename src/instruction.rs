@@ -37,10 +37,12 @@ pub enum BridgeInstruction {
     ///   0. `[writable]` Vault token account to transfer tokens to unshield maker
     ///   1. `[]` Unshield maker address
     ///   2. `[]` $vault_authority derived from `create_program_address(&[incognito proxy account])`
-    ///   3. `[writable]` Vault account to store transaction burn id
+    ///   3. `[writable]` pda account to mark burn id already used
     ///   4. `[]` Incognito proxy which stores beacon list and bump seed to retrieve vault token account
     ///   5. `[]` Spl Token program id
     ///   6. `[writable]` Associated token account of unshield maker
+    ///   7. `[signer]` Fee payer for pda account which stores tx id
+    ///   8. `[]` System program to create pda account
     UnShield {
         /// unshield info
         unshield_info: UnshieldRequest,

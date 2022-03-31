@@ -3,6 +3,7 @@ package main
 import (
 	"context"
 	"encoding/binary"
+	"encoding/hex"
 	"fmt"
 	"github.com/davecgh/go-spew/spew"
 	bin "github.com/gagliardetto/binary"
@@ -196,8 +197,8 @@ func main() {
 
 	fmt.Println("============ TEST UNSHIELD TOKEN ACCOUNT =============")
 	txBurn2 := "860e3d8a207872c430304bdd44dfe920c62b518dff2a802e0afe04ef997f2cbd"
-	tokenUnshield := solana.MustPublicKeyFromBase58("EHheP6Wfyz65ve258TYQcfBHAAY4LsErnmXZozrgfvGr")
-	unshieldMakerRequest := solana.MustPublicKeyFromBase58("GQcYV3Y9VXLD7HWY5bUf3JGyXYmGg1bMgs4nMMVKKBLE")
+	tokenUnshield := solana.MustPublicKeyFromBase58("BEcGFQK1T1tSu3kvHC17cyCkQ5dvXqAJ7ExB2bb5Do7a")
+	unshieldMakerRequest := solana.MustPublicKeyFromBase58("F56LmA6zUUoxQrTJ2TwTaAWAirAt4Pm93qjP8ReBgzXU")
 	unshielMakerAssTokenAcc, _, err := solana.FindAssociatedTokenAddress(unshieldMakerRequest, tokenUnshield)
 	if err != nil {
 		panic(err)
@@ -211,6 +212,16 @@ func main() {
 	}
 	fmt.Println(vaultAssTokenAcc.String())
 
+	txburnID, err := hex.DecodeString("373f1b9482f22612c1a14ccdb6e91098b5d009bc0b97befbe856a94c8b9170ef")
+	if err != nil {
+		panic(err)
+	}
+
+	pdaMarkBurnID, _, err := solana.FindProgramAddress(
+		[][]byte{incognitoProxy.Bytes(), txburnID},
+		program,
+	)
+
 	unshieldInst := []solana.Instruction{}
 	signers3 := []solana.PrivateKey{
 		feePayer,
@@ -222,10 +233,12 @@ func main() {
 		solana.NewAccountMeta(vaultAssTokenAcc, true, false),
 		solana.NewAccountMeta(unshieldMakerRequest, false, false),
 		solana.NewAccountMeta(vaultTokenAuthority, false, false),
-		solana.NewAccountMeta(vaultAcc, true, false),
+		solana.NewAccountMeta(pdaMarkBurnID, true, false),
 		solana.NewAccountMeta(incognitoProxy, false, false),
 		solana.NewAccountMeta(solana.TokenProgramID, false, false),
 		solana.NewAccountMeta(unshielMakerAssTokenAcc, true, false),
+		solana.NewAccountMeta(feePayer.PublicKey(), false, true),
+		solana.NewAccountMeta(solana.SystemProgramID, false, false),
 	}
 
 	_, err = rpcClient.GetAccountInfo(context.TODO(), unshielMakerAssTokenAcc)

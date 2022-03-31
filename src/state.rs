@@ -3,21 +3,24 @@ use solana_program::{
     program_pack::{IsInitialized, Pack, Sealed},
     secp256k1_recover::{Secp256k1Pubkey, SECP256K1_PUBLIC_KEY_LENGTH},
 };
-use std::{collections::BTreeMap};
 use arrayref::{array_mut_ref, array_ref, array_refs, mut_array_refs};
 use borsh::{BorshSerialize, BorshDeserialize};
 use crate::error::BridgeError;
 
-/// ====== INCOGNITO VAULT =======
-#[derive(BorshSerialize, BorshDeserialize, Clone, Debug)]
-pub struct Vault {
-    pub is_initialized: u8,
-    pub map: BTreeMap<[u8; 32], bool>
+/// ====== INCOGNITO PDA BURNID =======
+#[derive(Clone, Default, BorshSerialize, BorshDeserialize)]
+pub struct PDABurnId {
+    pub is_initialized: bool,
 }
 
-impl Vault {
-    pub const LEN: usize = 1 + (4 + (300 * 33)); // 300 txid to store on each pda
-    pub const MAX_UNSHIELD_REQUEST: usize = 300;
+impl PDABurnId {
+    pub const LEN: usize = 1;
+}
+
+impl IsInitialized for PDABurnId {
+    fn is_initialized(&self) -> bool {
+        self.is_initialized
+    }
 }
 
 /// ====== INCOGNITO PROXY =======

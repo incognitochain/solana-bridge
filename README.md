@@ -1,5 +1,5 @@
 # SOLANA <> INCOGNITO BRIDGE
-Bridge program to bring privacy for Solana ecosystem.
+Bridge program to bring privacy to Solana ecosystem.
 
 # PROGRAM GUIDE
 

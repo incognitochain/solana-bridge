@@ -148,7 +148,7 @@ pub struct DappRequest {
 
 /// Reserve liquidity
 #[derive(Clone, Debug, PartialEq)]
-pub struct UnshieldRequest {
+pub struct BeaconRequests {
     // instruction in bytes
     pub inst: [u8; 162],
     // beacon height

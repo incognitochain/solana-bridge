@@ -19,7 +19,7 @@ use std::{
 use borsh::{BorshSerialize};
 use spl_token::state::Account as TokenAccount;
 use arrayref::{array_refs, array_ref};
-use crate::{error::BridgeError, instruction::BridgeInstruction, state::{UnshieldRequest, IncognitoProxy, PDABurnId}};
+use crate::{error::BridgeError, instruction::BridgeInstruction, state::{BeaconRequests, IncognitoProxy, PDABurnId}};
 use crate::state::{DappRequest};
 use spl_associated_token_account::{get_associated_token_address};
 
@@ -52,6 +52,10 @@ pub fn process_instruction(
         BridgeInstruction::WithdrawRequest{ amount, inc_address } => {
             msg!("Instruction: Withdraw Request");
             process_withdraw_request(accounts, amount, inc_address, program_id)
+        }
+        BridgeInstruction::SwapBeacons{ swap_beacon_info } => {
+            msg!("Instruction: Swap beacons");
+            process_swap_beacon(accounts, swap_beacon_info, program_id)
         }
     }
 }
@@ -108,10 +112,10 @@ fn process_shield(
 /// [x] store unshield tx id
 /// [x] transfer token back to user
 
-// add logic to proccess unshield for users
+// add logic to process unshield for users
 fn process_unshield(
     accounts: &[AccountInfo],
-    unshield_info: UnshieldRequest,
+    unshield_info: BeaconRequests,
     program_id: &Pubkey,
 ) -> ProgramResult {
     let account_info_iter = &mut accounts.iter();
@@ -190,56 +194,9 @@ fn process_unshield(
         msg!("Receive key and key provided not match {}, {}", receiver_key, *unshield_maker.key);
         return Err(BridgeError::InvalidKeysInInstruction.into());
     }
-
     // verify beacon signature
-    if unshield_info.indexes.len() != unshield_info.signatures.len() {
-        msg!("Invalid instruction provided, length of indexes and signatures not match");
-        return Err(BridgeError::InvalidBeaconInstruction.into());
-    }
+    _verify_beacon_request(&unshield_info, &incognito_proxy_info, &inst)?;
 
-    if unshield_info.signatures.len() <= incognito_proxy_info.beacons.len() * 2 / 3 {
-        msg!("Invalid instruction input");
-        return Err(BridgeError::InvalidNumberOfSignature.into());
-    }
-
-    let mut blk_data_bytes = unshield_info.blk_data.to_vec();
-    blk_data_bytes.extend_from_slice(&unshield_info.inst_root);
-    // Get double block hash from instRoot and other data
-    let blk = hash(&hash(&blk_data_bytes[..]).to_bytes());
-
-    for i in 0..unshield_info.indexes.len() {
-        let s_r_v = unshield_info.signatures[i];
-        let (s_r, v) = s_r_v.split_at(64);
-        if v.len() != 1 {
-            msg!("Invalid signature v input");
-            return Err(BridgeError::InvalidBeaconSignature.into());
-        }
-        let beacon_key_from_signature_result = secp256k1_recover(
-            &blk.to_bytes()[..],
-            v[0],
-            s_r,
-        ).unwrap();
-        let index_beacon = unshield_info.indexes[i];
-        let beacon_key = incognito_proxy_info.beacons[index_beacon as usize];
-        if beacon_key_from_signature_result != beacon_key {
-            return Err(BridgeError::InvalidBeaconSignature.into());
-        }
-    }
-
-    // append block height to instruction
-    let height_vec = append_at_top(unshield_info.height);
-    let mut inst_vec = inst.to_vec();
-    inst_vec.extend_from_slice(&height_vec);
-    let inst_hash = hash(&inst_vec[..]);
-    if !instruction_in_merkle_tree(
-        &inst_hash.to_bytes(),
-        &unshield_info.inst_root,
-        &unshield_info.inst_paths,
-        &unshield_info.inst_path_is_lefts
-    ) {
-        msg!("Invalid instruction root");
-        return Err(BridgeError::InvalidBeaconMerkleTree.into());
-    }
     // verify pda generated from tx burn id not initialized
     _process_tx_burn_id(pda_account, incognito_proxy, authority_account, system_program, program_id, tx_id)?;
 
@@ -427,6 +384,75 @@ fn process_dapp_interaction(
         &accounts_info[..],
         &[authority_signer_seeds],
     ).unwrap();
+
+    Ok(())
+}
+
+// swap beacons
+fn process_swap_beacon(
+    accounts: &[AccountInfo],
+    swap_beacon_info: BeaconRequests,
+    program_id: &Pubkey,
+) -> ProgramResult {
+    // verify request
+
+    //
+
+    // create new PDA to store old beacon
+
+    Ok(())
+}
+
+fn _verify_beacon_request(unshield_info: &BeaconRequests, incognito_proxy_info: &IncognitoProxy, inst: &[u8; 162]) -> ProgramResult {
+    // verify beacon signature
+    if unshield_info.indexes.len() != unshield_info.signatures.len() {
+        msg!("Invalid instruction provided, length of indexes and signatures not match");
+        return Err(BridgeError::InvalidBeaconInstruction.into());
+    }
+
+    if unshield_info.signatures.len() <= incognito_proxy_info.beacons.len() * 2 / 3 {
+        msg!("Invalid instruction input");
+        return Err(BridgeError::InvalidNumberOfSignature.into());
+    }
+
+    let mut blk_data_bytes = unshield_info.blk_data.to_vec();
+    blk_data_bytes.extend_from_slice(&unshield_info.inst_root);
+    // Get double block hash from instRoot and other data
+    let blk = hash(&hash(&blk_data_bytes[..]).to_bytes());
+
+    for i in 0..unshield_info.indexes.len() {
+        let s_r_v = unshield_info.signatures[i];
+        let (s_r, v) = s_r_v.split_at(64);
+        if v.len() != 1 {
+            msg!("Invalid signature v input");
+            return Err(BridgeError::InvalidBeaconSignature.into());
+        }
+        let beacon_key_from_signature_result = secp256k1_recover(
+            &blk.to_bytes()[..],
+            v[0],
+            s_r,
+        ).unwrap();
+        let index_beacon = unshield_info.indexes[i];
+        let beacon_key = incognito_proxy_info.beacons[index_beacon as usize];
+        if beacon_key_from_signature_result != beacon_key {
+            return Err(BridgeError::InvalidBeaconSignature.into());
+        }
+    }
+
+    // append block height to instruction
+    let height_vec = append_at_top(unshield_info.height);
+    let mut inst_vec = inst.to_vec();
+    inst_vec.extend_from_slice(&height_vec);
+    let inst_hash = hash(&inst_vec[..]);
+    if !instruction_in_merkle_tree(
+        &inst_hash.to_bytes(),
+        &unshield_info.inst_root,
+        &unshield_info.inst_paths,
+        &unshield_info.inst_path_is_lefts
+    ) {
+        msg!("Invalid instruction root");
+        return Err(BridgeError::InvalidBeaconMerkleTree.into());
+    }
 
     Ok(())
 }

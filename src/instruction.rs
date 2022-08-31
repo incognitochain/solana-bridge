@@ -10,7 +10,7 @@ use crate::error::BridgeError::{
     InstructionUnpackError
 };
 use crate::state::{
-    UnshieldRequest,
+    BeaconRequests,
     IncognitoProxy,
     DappRequest,
 };
@@ -45,7 +45,7 @@ pub enum BridgeInstruction {
     ///   8. `[]` System program to create pda account
     UnShield {
         /// unshield info
-        unshield_info: UnshieldRequest,
+        unshield_info: BeaconRequests,
     },
 
     ///   Initializes a new Incognito proxy account.
@@ -79,6 +79,14 @@ pub enum BridgeInstruction {
         /// withdraw request
         amount: u64,
         inc_address: [u8; 148],
+    },
+
+    /// Swap beacon, replace old beacons by new beacons to secure network
+    ///
+    ///
+    SwapBeacons {
+        /// swap beacon request
+        swap_beacon_info: BeaconRequests,
     },
 }
 
@@ -136,7 +144,7 @@ impl BridgeInstruction {
                     signatures.push(*signature);
                 }
 
-                let incognito_proof = UnshieldRequest {
+                let incognito_proof = BeaconRequests {
                     inst: *inst,
                     height,
                     inst_paths,

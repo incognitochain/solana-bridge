@@ -394,11 +394,12 @@ fn process_swap_beacon(
     swap_beacon_info: BeaconRequests,
     program_id: &Pubkey,
 ) -> ProgramResult {
-    // verify request
+    // todo:
+    // verify beacon request
 
-    //
+    // replace with new beacon list
 
-    // create new PDA to store old beacon
+    // create new PDA to store old beacon with seed = {beacon height, total beacon keys}
 
     Ok(())
 }

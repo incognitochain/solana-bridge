@@ -394,12 +394,22 @@ fn process_swap_beacon(
     swap_beacon_info: BeaconRequests,
     program_id: &Pubkey,
 ) -> ProgramResult {
-    // todo:
+    // parse accounts
+
     // verify beacon request
 
     // replace with new beacon list
 
     // create new PDA to store old beacon with seed = {beacon height, total beacon keys}
+
+    Ok(())
+}
+
+fn process_reshield(
+    accounts: &[AccountInfo],
+    swap_beacon_info: BeaconRequests,
+    program_id: &Pubkey,
+) -> ProgramResult {
 
     Ok(())
 }
@@ -433,9 +443,12 @@ fn _verify_beacon_request(unshield_info: &BeaconRequests, incognito_proxy_info: 
             v[0],
             s_r,
         ).unwrap();
+        // beacon restored from signature
+        let beacon_address = array_ref![hash(&beacon_key_from_signature_result.to_bytes()).0, 12, 20];
         let index_beacon = unshield_info.indexes[i];
+        // retrieve beacon from contract
         let beacon_key = incognito_proxy_info.beacons[index_beacon as usize];
-        if beacon_key_from_signature_result != beacon_key {
+        if beacon_address != beacon_key {
             return Err(BridgeError::InvalidBeaconSignature.into());
         }
     }
